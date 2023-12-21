@@ -20,6 +20,9 @@ class WhisperRequest(BaseModel):
     language: str = Field("en")
     timestamps: bool = Field(True)
 
+    aggregate: bool = Field(True)
+    aggregate_chunksize: int = Field(60)
+
 
 class TimeStamp(BaseModel):
     start: str = Field(..., description="Start time of the segment")
