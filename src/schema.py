@@ -6,25 +6,13 @@
 from pydantic import BaseModel, Field, field_validator
 import pandas as pd
 
-from typing import Optional
+from typing import List, Optional
 import re
 
 
-class WhisperRequest(BaseModel):
-    """Request body for the Whisper model"""
-
-    audio: str = Field(None)
-    audio_base64: str = Field(None)
-
-    transcript: str = Field("text")
-    language: str = Field("en")
-    timestamps: bool = Field(True)
-
-    aggregate: bool = Field(True)
-    chunksize: int = Field(60)
-
-
 class TimeStamp(BaseModel):
+    """Timestamp object."""
+
     start: str = Field(..., description="Start time of the segment")
     end: Optional[str] = Field(None, description="End time of the segment")
 
@@ -57,5 +45,59 @@ class TimeStamp(BaseModel):
     def __str__(self):
         return f"{self.start} --> {self.end}"
 
+    def __repr__(self):
+        return f"{self.start} --> {self.end}"
+
     def model_dump(self):
         return {"start": self.start, "end": self.end}
+
+
+class Chunk(BaseModel):
+    """ "Transcript chunk."""
+
+    timestamp: TimeStamp = Field(...)
+    text: str = Field(...)
+
+    def __str__(self):
+        return f"{self.timestamp}\t{self.text}"
+
+    def __repr__(self):
+        return f"{self.timestamp}\t{self.text}"
+
+    def model_dump(self):
+        return {"timestamp": self.timestamp.model_dump(), "text": self.text}
+
+
+class Transcript(BaseModel):
+    """Transcript object."""
+
+    chunks: List[Chunk] = Field(...)
+    text: str = Field(...)
+
+    def __str__(self):
+        return "\n".join(str(chunk) for chunk in self.chunks)
+
+    def __repr__(self):
+        return "\n".join(str(chunk) for chunk in self.chunks)
+
+    def model_dump(self):
+        return {
+            "chunks": [chunk.model_dump() for chunk in self.chunks],
+            "text": self.text,
+        }
+
+
+class TranscriptionRequest(BaseModel):
+    """Request body for the transcription endpoint."""
+
+    audio_base64: str = Field(None)
+    language: str = Field("en")
+    aggregate: bool = Field(True)
+    chunksize: int = Field(60)
+
+
+class TranscriptionResponse(BaseModel):
+    """Response body for the transcription endpoint."""
+
+    transcript: Optional[Transcript] = Field(None)
+    errors: Optional[List[str]] = Field(None)
