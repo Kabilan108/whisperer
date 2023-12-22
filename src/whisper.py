@@ -10,6 +10,7 @@ import torch
 from typing import Any
 import logging
 
+from schema import TranscriptionResponse
 import utils
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
@@ -40,8 +41,6 @@ class Whisper:
             device=DEVICE,
         )
 
-        # TODO: use bettertransformer
-
         return _pipeline
 
     def setup(self):
@@ -51,9 +50,7 @@ class Whisper:
     def transcribe(
         self,
         audiofile,
-        transcript: str = "plain_text",
         language: str = "en",
-        timestamps: bool = True,
         aggregate: bool = True,
         chunksize: int = 30,
     ) -> Any:
@@ -62,75 +59,54 @@ class Whisper:
         Args:
             audiofile (str): The audio file to be transcribed. Must be a path to a
                 file on disk.
-            transcript (str): The type of transcript to return.
             language (str): The language of the audio file. Must be a valid
                 language code for one of the 99 languages supported Whisper.
-            timestamps (bool): Whether to return timestamps.
             aggregate (bool): Whether to aggregate the transcript into chunks of
                 `chunksize` seconds.
             chunksize (int): The chunksize in seconds.
         """
+
         whisper = self.models[MODEL]
+        error = None
 
         if not whisper:
             raise ValueError("Model not found.")
 
-        segments = whisper(
-            audiofile,
-            chunk_length_s=30,
-            batch_size=12,
-            return_timestamps=timestamps,
-            generate_kwargs={
-                "task": "transcribe",
-                "language": language,
-            },
-        )
+        try:
+            segments = whisper(
+                audiofile,
+                chunk_length_s=30,
+                batch_size=12,
+                return_timestamps=True,
+                generate_kwargs={
+                    "task": "transcribe",
+                    "language": language,
+                },
+            )
+            torch.cuda.empty_cache()
+        except Exception as e:
+            error = {
+                "message": "Unable to transcribe audio file.",
+                "details": str(e),
+            }
 
-        torch.cuda.empty_cache()
-
-        if transcript == "plain_text":
-            return segments["text"]
-
-        if timestamps:
+        if error:
+            result = TranscriptionResponse(error=error)
+        else:
             # convert timestamp strings to TimeStamp objects
-            clean_segments = []
             for i, seg in enumerate(segments["chunks"]):
                 timestamp, text = seg.values()
 
-                clean_segments.append(
-                    {"timestamp": utils.to_timestamp(timestamp), "text": text}
-                )
                 segments["chunks"][i] = {
-                    "timestamp": utils.to_timestamp(timestamp).model_dump(),
+                    "timestamp": utils.to_timestamp(timestamp),
                     "text": text,
                 }
 
             if aggregate:
-                clean_segments = utils.aggregate_chunks(
-                    clean_segments, chunksize=chunksize
+                segments["chunks"] = utils.aggregate_chunks(
+                    segments["chunks"], chunksize=chunksize
                 )
-                segments["chunks"] = [
-                    {"timestamp": seg["timestamp"].model_dump(), "text": seg["text"]}
-                    for seg in clean_segments
-                ]
 
-            if transcript == "text":
-                return "\n".join(
-                    f"{seg['timestamp']}\t{seg['text']}" for seg in clean_segments
-                )
-            elif transcript == "json":
-                return segments["chunks"]
-            elif transcript == "csv":
-                return utils.to_csv(segments["chunks"])
-            elif transcript == "tsv":
-                return utils.to_tsv(segments["chunks"])
-            else:
-                raise ValueError("Unknown transcript type.")
+            result = TranscriptionResponse(transcript=utils.to_transcript(segments))
 
-        else:
-            if transcript == "text":
-                return segments["text"]
-            else:
-                raise ValueError(
-                    "This transcript type is only available with timestamps."
-                )
+        return result
