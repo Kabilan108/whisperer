@@ -1,6 +1,10 @@
 # Use specific version of nvidia cuda image
 FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
+# Set environment variables
+ENV TRANSFORMERS_CACHE=/models
+RUN mkdir -p /models
+
 # Remove any third-party apt sources to avoid issues with expiring keys.
 RUN rm -f /etc/apt/sources.list.d/*.list
 
