@@ -9,7 +9,7 @@ from pathlib import Path
 
 import ffmpeg
 
-from schema import TimeStamp
+from schema import Chunk, TimeStamp, Transcript
 
 _SAMPLING_RATE = 16000
 
@@ -82,6 +82,15 @@ def to_tsv(chunks: List[Dict]) -> str:
         tsv += f"'{start}'\t'{end}'\t'{text}'\n"
 
     return tsv
+
+
+def to_transcript(segments: Dict) -> Transcript:
+    """Convert transcript segments from Whisper to a Transcript object."""
+
+    return Transcript(
+        chunks=[Chunk(**chk) for chk in segments["chunks"]],
+        text=segments["text"],
+    )
 
 
 def aggregate_chunks(segments: List[Dict], chunksize: int = 30) -> List[Dict]:
