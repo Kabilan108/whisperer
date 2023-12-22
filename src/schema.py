@@ -21,7 +21,7 @@ class WhisperRequest(BaseModel):
     timestamps: bool = Field(True)
 
     aggregate: bool = Field(True)
-    aggregate_chunksize: int = Field(60)
+    chunksize: int = Field(60)
 
 
 class TimeStamp(BaseModel):
@@ -53,3 +53,9 @@ class TimeStamp(BaseModel):
         start_str = str(start_td)[-8:]
         end_str = str(end_td)[-8:]
         return cls(start=start_str, end=end_str)
+
+    def __str__(self):
+        return f"{self.start} --> {self.end}"
+
+    def model_dump(self):
+        return {"start": self.start, "end": self.end}
